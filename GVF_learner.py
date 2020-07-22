@@ -28,6 +28,8 @@ class GVF_learner():
         self.action_space = parameters["action space"]
         self.state_len = parameters["state length"]
         self.discount_factor = FloatTensor(parameters["discount factor"])
+        self.soft_tau = parameters["soft_tau"]
+        self.model_replace_freq = parameters["model_replace_freq"]
         self.data_length = len(dataset)
         
         #init data loader
@@ -74,6 +76,11 @@ class GVF_learner():
     def learn_and_eval(self, train_epochs, test_interval):
         for i in tqdm(range(train_epochs)):
             total_loss = self.learn()
+            if i % self.model_replace_freq == 0:
+                if self.model_replace_freq == 1:
+                    self.soft_replace()
+                else:
+                    self.hard_replace()
             if i % test_interval == 0:
                 print("train loss : {}".format(total_loss))
                 self.evaluation()
@@ -124,7 +131,22 @@ class GVF_learner():
         
     def evaluation(self):
         pass
+    
+    def soft_replace(self):
+        """Soft update model parameters.
+        θ_target = τ*θ_local + (1 - τ)*θ_target
 
+        Params
+        ======
+            local_model (PyTorch model): weights will be copied from
+            target_model (PyTorch model): weights will be copied to
+            tau (float): interpolation parameter 
+        """
+        for target_param, eval_param in zip(self.target_model.parameters(), self.eval_model.parameters()):
+            target_param.data.copy_(self.soft_tau*eval_param.data + (1.0-self.soft_tau)*target_param.data)
+    
+    def hard_replace(self):
+        self.target_model.load_state_dict(self.eval_model.state_dict())
     
     
 # -------------------------- test ---------------------------

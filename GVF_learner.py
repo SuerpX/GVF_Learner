@@ -55,9 +55,6 @@ class GVF_learner():
         states, actions, features, next_states, dones = [], [], [], [], []
         for data in dataset:
             s, a, _, ns, d, f = data
-#             print("11111", s)
-#             print(a)
-#             input()
             states.append(s)
             actions.append(a)
             features.append(f)
@@ -91,10 +88,6 @@ class GVF_learner():
             action_one_hot = [0] * self.action_space
             action_one_hot[a] = 1
             next_state_actions.append(state + action_one_hot)
-#         print(self.action_space)
-#         print(state)
-#         print(next_state_actions)
-#         input()
         return next_state_actions
     
     def learn(self):

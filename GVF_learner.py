@@ -47,6 +47,7 @@ class GVF_learner():
         if use_cuda:
             self.eval_model = self.eval_model.cuda()
             self.target_model = self.target_model.cuda()
+        self.update_count = 0
         self.loss_func = nn.MSELoss()
         self.optimizer = Adam(self.eval_model.parameters(), lr = parameters["learning rate"])
         
@@ -54,6 +55,9 @@ class GVF_learner():
         states, actions, features, next_states, dones = [], [], [], [], []
         for data in dataset:
             s, a, _, ns, d, f = data
+#             print("11111", s)
+#             print(a)
+#             input()
             states.append(s)
             actions.append(a)
             features.append(f)
@@ -76,11 +80,6 @@ class GVF_learner():
     def learn_and_eval(self, train_epochs, test_interval):
         for i in tqdm(range(train_epochs)):
             total_loss = self.learn()
-            if i % self.model_replace_freq == 0:
-                if self.model_replace_freq == 1:
-                    self.soft_replace()
-                else:
-                    self.hard_replace()
             if i % test_interval == 0:
                 print("train loss : {}".format(total_loss))
                 self.evaluation()
@@ -92,14 +91,19 @@ class GVF_learner():
             action_one_hot = [0] * self.action_space
             action_one_hot[a] = 1
             next_state_actions.append(state + action_one_hot)
+#         print(self.action_space)
+#         print(state)
+#         print(next_state_actions)
+#         input()
         return next_state_actions
     
     def learn(self):
         total_loss = 0
         count = 0
         for mini_batch in self.train_dl:
+            self.update_count += 1
             s, a, f, ns, dones = mini_batch
-            a = a.type(torch.LongTensor)
+#             a = a.type(torch.LongTensor)
             batch_idx = LongTensor(list(range(s.size()[0])))
             
             # GVF(s)
@@ -109,7 +113,7 @@ class GVF_learner():
 #             s_gvfs = s_gvfs.view(-1, self.action_space, self.feature_num)[batch_idx, a, :]
             
             # state action needs
-            na = self.policy_func(ns)
+            na = self.policy_func(ns.view(-1, self.input_len))
             ns = ns.view(-1, self.input_len)
             ns_gvfs = self.target_model(ns).detach()
             ns_gvf = ns_gvfs.view(-1, self.action_space, self.feature_num)[batch_idx, na, :]
@@ -120,6 +124,13 @@ class GVF_learner():
             loss = self.fit(s_gvfs, target_gvf)
             total_loss += loss
             count += 1
+            
+            if self.update_count % self.model_replace_freq == 0:
+                if self.model_replace_freq == 1:
+                    self.soft_replace()
+                else:
+                    self.hard_replace()
+                
         return total_loss / count
     
     def fit(self, predict_gvf, target_gvf):
